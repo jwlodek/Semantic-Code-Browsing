@@ -25,11 +25,39 @@ class PrologProgramRepresentation(ProgramRepresentation):
                     matching_predicates.append(pred)
 
         for pred in matching_predicates:
-            
+            for i in range(0, len(pred.set_of_terms)):
+                if isinstance(pred.set_of_terms[i], Function) and isinstance(predicate.set_of_terms[i], Variable):
+                    if predicate.set_of_terms[i].computed_type == 'var' or predicate.set_of_terms[i].computed_type is None:
+                        predicate.set_of_terms[i].computed_type = 'func'
+                    else:
+                        raise SCBErrors.SCBVariableMatchInvalidError
+                elif isinstance(pred.set_of_terms[i], Variable) and isinstance(predicate.set_of_terms[i], Function):
+                    if pred.set_of_terms[i].computed_type == 'var' or pred.set_of_terms[i].computed_type is None:
+                        pred.set_of_terms[i].computed_type = 'func'
+                    else:
+                        raise SCBErrors.SCBVariableMatchInvalidError
+                elif isinstance(pred.set_of_terms[i], Variable) and isinstance(predicate.set_of_terms[i], Variable):
+                    if pred.set_of_terms[i].computed_type is None:
+                        pred.set_of_terms[i].computed_type = predicate.set_of_terms[i].computed_type
+                    elif predicate.set_of_terms[i].computed_type is None:
+                        predicate.set_of_terms[i].computed_type = pred.set_of_terms[i].computed_type
+                    elif pred.set_of_terms[i].computed_type == 'var' and predicate.set_of_terms[i].computed_type != 'var':
+                        pred.set_of_terms[i].computed_type = predicate.set_of_terms[i].computed_type
+                    elif predicate.set_of_terms[i].computed_type == 'var' and pred.set_of_terms[i].computed_type != 'var':
+                        predicate.set_of_terms[i].computed_type = pred.set_of_terms[i].computed_type
+                    elif predicate.set_of_terms[i].computed_type != pred.set_of_terms[i].computed_type:
+                        raise SCBErrors.SCBVariableMatchInvalidError
+
+
 
     def add_predicate(self, new_pred):
         self.predicates.append(new_pred)
         self.predicate_map[new_pred.name] = len(self.predicates) - 1
+
+    def print_representation(self, fp=sys.stdout):
+        fp.write('{} w/ {} predicates\n{}\nPredicates:\n'.format(self.representation_name, len(self.predicates), self.description))
+        for pred in self.predicates:
+            pred.print_term(fp=fp)
 
 
 class Term:
@@ -63,6 +91,11 @@ class Variable(Term):
     def __init__(self, name, computed_type):
         super().__init__(name)
         self.computed_type = computed_type
+
+    def get_variable_list_from_terms(self):
+        out = []
+        out.append(self)
+        return out
 
     def print_term(self, fp=sys.stdout):
         expected_type = self.computed_type

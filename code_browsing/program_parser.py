@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import code_browsing.errors as SCBErrors
 import code_browsing.program_representation as PR
 
@@ -81,9 +82,7 @@ class PrologProgramParser(ProgramParser):
         if '(' in symbol_no_whitespace and ')' in symbol_no_whitespace:
             term_list = []
             symbol_inputs = self.grab_symbols(symbol_no_whitespace.split('(', 1)[1][:-1])
-            print(symbol_inputs)
             for elem in symbol_inputs:
-                print(elem)
                 term = self.convert_symbol_to_PR(elem)
                 term_list.append(term)
             if is_predicate:
@@ -114,6 +113,8 @@ class PrologProgramParser(ProgramParser):
                         computed_type = 'list'
                     elif item[0].isdigit():
                         computed_type = 'scalar'
+                    elif items[0][0].isupper():
+                        computed_type = 'var'
                     operators.append(PR.Variable(item, computed_type))
                 return PR.Operator('operator', operations, operators)
 
@@ -159,17 +160,10 @@ class PrologProgramParser(ProgramParser):
                     temp = temp[:-1]
                 elif temp.endswith(','):
                     temp = temp[:-1]
-                for clause in temp.split(','):
-                    clause, clause_vars, clause_functions = self.convert_symbol_to_PR(clause)
-                    if clause is not None:
-                        self.program_representation.add_function(clause)
-                        predicate_body.append(clause)
-                    if clause_vars is not None:
-                        for var in clause_vars:
-                            self.program_representation.add_variable(var)
-                    if clause_functions is not None:
-                        for func in clause_functions:
-                            self.program_representation.add_function(func)
+                clauses = self.grab_symbols(temp)
+                for clause in clauses:
+                    clause = self.convert_symbol_to_PR(clause)
+                    predicate_body.append(clause)
 
             if not reading_predicate:
                 predicate.body = predicate_body
@@ -179,7 +173,10 @@ class PrologProgramParser(ProgramParser):
                     sys.stderr.write('WARNING: Variable in predicate {}/{} matches to two different conflicting types!\n'.format(predicate.name, predicate.arity))
 
                 self.program_representation.add_predicate(predicate)
-                self.program_representation.update_variable_expected_types()
+                try:
+                    self.program_representation.update_variable_expected_types(predicate)
+                except SCBErrors.SCBVariableMatchInvalidError:
+                    sys.stderr.write('WARNING: Two instances of predicate {}/{} have different detected input types!\n'.format(predicate.name, predicate.arity))
 
                 
 
