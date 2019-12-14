@@ -7,8 +7,6 @@ import code_browsing.query_engine as QUERY_ENGINE
 
 
 
-
-
 def main():
     parser = argparse.ArgumentParser(description='A python utility for sematically browsing python and prolog code.')
     parser.add_argument('programpath', help='Enter the path to the program or directory you wish to browse.')
@@ -18,7 +16,8 @@ def main():
     else:
         parser = PARSER.PrologProgramParser()
         parser.parse_program(args['programpath'])
-        parser.program_representation.print_representation()
+        query_shell = QUERY_ENGINE.QueryShell(args['programpath'], parser.program_representation)
+        query_shell.run_shell()
 
 
 if __name__ == "__main__":

@@ -6,3 +6,6 @@ class SCBVariableMatchInvalidError(Exception):
 
 class SCBRedefinedPredicateError(Exception):
     pass
+
+class SCBInvalidQueryError(Exception):
+    pass

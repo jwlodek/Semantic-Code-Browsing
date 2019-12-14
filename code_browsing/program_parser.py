@@ -77,7 +77,6 @@ class PrologProgramParser(ProgramParser):
 
     def convert_symbol_to_PR(self, symbol, is_predicate=False):
         symbol_no_whitespace = re.sub(' +', '', symbol.strip())
-        print(symbol_no_whitespace)
 
         if '(' in symbol_no_whitespace and ')' in symbol_no_whitespace:
             term_list = []
@@ -128,16 +127,13 @@ class PrologProgramParser(ProgramParser):
             stripped = re.sub(' +', '', line.strip())
 
             # Case of single line predicate with no body
-            if not reading_predicate and line.endswith('.') and ':-' not in line:
+            if not reading_predicate and stripped.endswith('.') and ':-' not in line:
                 temp = stripped[:-1]
                 predicate = self.convert_symbol_to_PR(temp, is_predicate=True)
 
-            # case of predicate
-            if ':-' in line or stripped.endswith('.'):
-                reading_predicate = True
-
             # Case of line with head + body
-            if ':-' in line:
+            elif ':-' in line:
+                reading_predicate = True
                 head_body = stripped.split(':-')
                 predicate = self.convert_symbol_to_PR(head_body[0], is_predicate=True)
                 temp = head_body[1]
@@ -149,9 +145,9 @@ class PrologProgramParser(ProgramParser):
                 if len(temp) > 0:
                     clauses = self.grab_symbols(temp)
                     for clause in clauses:
-                        clause = self.convert_symbol_to_PR(clause)
-                        if clause is not None:
-                            predicate_body.append(clause)
+                        convert = self.convert_symbol_to_PR(clause)
+                        if convert is not None:
+                            predicate_body.append(convert)
                     
             elif reading_predicate:
                 temp = line.strip()
@@ -177,6 +173,8 @@ class PrologProgramParser(ProgramParser):
                     self.program_representation.update_variable_expected_types(predicate)
                 except SCBErrors.SCBVariableMatchInvalidError:
                     sys.stderr.write('WARNING: Two instances of predicate {}/{} have different detected input types!\n'.format(predicate.name, predicate.arity))
+                predicate = None
+                predicate_body = []
 
                 
 

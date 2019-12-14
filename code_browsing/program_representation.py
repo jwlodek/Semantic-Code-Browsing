@@ -59,6 +59,13 @@ class PrologProgramRepresentation(ProgramRepresentation):
         for pred in self.predicates:
             pred.print_term(fp=fp)
 
+class PythonProgramRepresentation:
+    #TODO
+    pass
+
+class CProgramRepresentation:
+    #TODO
+    pass
 
 class Term:
 
