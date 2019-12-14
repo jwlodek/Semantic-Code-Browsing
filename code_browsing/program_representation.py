@@ -90,7 +90,6 @@ class Operator(Term):
         fp.write('\nbetween:\n')
         for term in self.operators:
             term.print_term(fp=fp)
-        fp.write('----------\n')
 
 
 class Variable(Term):
@@ -108,7 +107,7 @@ class Variable(Term):
         expected_type = self.computed_type
         if self.computed_type is None:
             expected_type = 'Unknown'
-        fp.write('Variable: {}, Expected Type: {}\n'.format(self.name, expected_type))
+        fp.write('Variable Name: {}, Expected Type: {}\n'.format(self.name, expected_type))
 
 
 class Function(Term):
@@ -131,8 +130,8 @@ class Function(Term):
         super().print_term()
         fp.write('Function of arity {}\nTerms:\n'.format(self.arity))
         for term in self.set_of_terms:
+            fp.write('- ')
             term.print_term(fp=fp)
-        fp.write('----------\n')
 
 class PythonFunction(Function):
 
@@ -175,10 +174,14 @@ class Predicate(Function):
 
 
 
-    def print_term(self, fp=sys.stdout):
-        fp.write('Predicate {}\n'.format(self.name))
+    def print_term(self, fp=sys.stdout, verbosity='standard'):
+        if verbosity == 'low':
+            fp.write('Predicate Name: {} Predicate arity: {}\n'.format(self.name, self.arity))
+            return
+        fp.write('Predicate Name: {}\n'.format(self.name))
         super().print_term()
-        fp.write('Body of predicate:\n')
-        for term in self.body:
-            term.print_term(fp=fp)
-        fp.write('----------\n')
+        if(len(self.body) > 0):
+            fp.write('Body of predicate:\n')
+            for term in self.body:
+                fp.write('- ')
+                term.print_term(fp=fp)

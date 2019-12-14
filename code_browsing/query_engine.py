@@ -1,6 +1,7 @@
 import os
 import sys
 import re
+import code_browsing.program_parser as PARSER
 import code_browsing.errors as SCBErrors
 import code_browsing.program_representation as PR
 import code_browsing.logger as LOGGER
@@ -17,17 +18,18 @@ class SCBQuery:
 
 class SCBQueryResult:
 
-    def __init__(self, true_matched_terms, partially_matched_terms):
+    def __init__(self, original_query, true_matched_terms, partially_matched_terms):
+        self.original_query = original_query
         self.true_matched_terms = true_matched_terms
         self.partially_matched_terms = partially_matched_terms
 
     def print_result(self, fp=sys.stdout):
-        fp.write('Terms fully matched with query:\n--------------------------------------------\n')
+        fp.write('\nQuery: {}\n\n'.format(self.original_query))
         for term in self.true_matched_terms:
-            term.print_term(fp)
-        fp.write('\nTerms artially matched with query:\n----------------------------------------\n')
-        for term in self.partially_matched_terms:
-            term.print_term(fp)
+            fp.write(' > ')
+            term.print_term(fp, verbosity='low')
+        
+        fp.write('\n{} Matching result(s) found.\n'.format(len(self.true_matched_terms)))
 
 class SCBAssertion:
 
@@ -55,14 +57,12 @@ class QueryEngine:
 
         nested_assertion_counter = 0
         current_assertion = ''
-        print(simplified_assertion_string)
         for c in simplified_assertion_string:
             if c == '(':
                 nested_assertion_counter = nested_assertion_counter + 1
             elif c == ')':
                 nested_assertion_counter = nested_assertion_counter - 1
             elif nested_assertion_counter == 0 and (c == 'O' or c=='A'):
-                print(current_assertion)
                 operator = current_assertion.split(':')[0]
                 values = current_assertion.split(':')[1].split(',')
                 assertion_list.append(SCBAssertion(operator, values))
@@ -93,17 +93,16 @@ class QueryEngine:
         return SCBQuery(query_str, query_type, assertion_list, assertion_relationships)
 
     def process_query(self, scb_query):
+        print('\nSearching for {} that satisfy assertions:'.format(scb_query.search_type))
         for assertion in scb_query.assertion_list:
             print(' - Assertion: {} -> {}'.format(assertion.assertion_operator, assertion.assertion_values))
-        for assertion_relation in scb_query.assertion_relationships:
-            print(assertion_relation)
 
         if isinstance(self.program_representation, PR.PrologProgramRepresentation):
             return self.process_prolog_query(scb_query)
         elif isinstance(self.program_representation, PR.CProgramRepresentation):
             return self.process_c_query(scb_query)
 
-    def process_c_query(self):
+    def process_c_query(self, scb_query):
         #TODO
         pass
 
@@ -122,10 +121,11 @@ class QueryEngine:
                     assertion_results = []
                     for assertion in scb_query.assertion_list:
                         assertion_results.append(self.check_assertion(assertion, pred))
+                    print(assertion_results)
                     check = self.combine_results_with_relationships(assertion_results, scb_query.assertion_relationships)
                     if check:
                         true_matches.append(pred)
-        return SCBQueryResult(true_matches,partial_matches)
+        return SCBQueryResult(scb_query.original_str, true_matches,partial_matches)
 
 
     def combine_results_with_relationships(self, assertion_results, assertion_relationships):
@@ -141,6 +141,14 @@ class QueryEngine:
                     combined_result.append(True)
                 else:
                     combined_result.append(False)
+
+        for i in range(0, len(assertion_results)):
+            in_relationship = False
+            for relation in assertion_relationships:
+                if relation[1] == i or relation[2] == i:
+                    in_relationship = True
+            if not in_relationship:
+                combined_result.append(assertion_results[i])
 
         if False in combined_result:
             return False
@@ -167,19 +175,17 @@ class QueryEngine:
 
 class QueryShell:
 
-    def __init__(self, program_path, program_representation):
+    def __init__(self, program_path):
 
         self.program_path = program_path
         if os.path.isfile(program_path):
             self.program_type = 'Single-File'
         else:
             self.program_type = 'Module'
-        self.program_representation = program_representation
-        self.engine = QueryEngine(program_representation)
-        if isinstance(program_representation, PR.PrologProgramRepresentation):
-            self.representation_language = 'Prolog'
-        elif isinstance(program_representation, PR.PythonProgramRepresentation):
-            self.representation_language = 'Python'
+        self.program_representation = None
+        self.load_new_program(program_path, initial_load=True)
+        self.engine = QueryEngine(self.program_representation)
+
 
 
     def print_query_shell_welcome_message(self):
@@ -196,7 +202,16 @@ class QueryShell:
 
 
     def print_query_shell_help(self):
-        print('TODO')
+        print('\nSCB Query Shell.\n--------------------------------------')
+        print('All queries in the shell should be followed by a period and then enter.\nFor help with Semantic Code Browsing (SCB) Queries, use:\n')
+        print(' > help scb.')
+        print('\nBasic Queries:')
+        print(' > exit.\n    Exits the shell.')
+        print(' > help.\n    Displays this help message.')
+        print(' > shell info.\n    Displays current shell information.')
+        print(' > program info.\n    Prints information on all elements collected from program.')
+        print(' > load program PATH.\n    Loads a new program with the specified path.')
+        print(' > describe FUNCTION/ARITY\n    Prints all information about a function or predicate.\n')
 
     def print_shell_info(self):
         print('TODO')
@@ -204,8 +219,31 @@ class QueryShell:
     def print_loaded_program_info(self):
         self.program_representation.print_representation()
 
-    def load_new_program(self, query):
-        print('TODO')
+    def load_new_program(self, path, initial_load=False):
+        if not os.path.exists(path):
+            print('ERROR - Path {} does not exist!'.format(path))
+            exit()
+        else:
+            parser = PARSER.PrologProgramParser()
+            parser.parse_program(path)
+            self.program_representation = parser.program_representation
+            if not initial_load:
+                self.engine.program_representation = self.program_representation
+            if isinstance(self.program_representation, PR.PrologProgramRepresentation):
+                self.representation_language = 'Prolog'
+            elif isinstance(self.program_representation, PR.PythonProgramRepresentation):
+                self.representation_language = 'Python'
+
+
+    def show_pred_fun_info(self, query):
+        pred_name = query.split(' ')[1].split('/')[0]
+        pred_arity = int(query.split(' ')[1].split('/')[1][:-1])
+        counter = 0
+        for pred in self.program_representation.predicates:
+            if pred.name == pred_name and pred.arity == pred_arity:
+                pred.print_term()
+                counter = counter + 1
+        print('\n{} Matching result(s) found.'.format(counter))
 
     def exit_shell(self):
         print('Exiting...')
@@ -229,7 +267,9 @@ class QueryShell:
                     elif query == 'program info.':
                         self.print_loaded_program_info()
                     elif query.startswith('load program'):
-                        self.load_new_program(query)
+                        self.load_new_program(query.split(' ')[2][:-1])
+                    elif query.startswith('describe'):
+                        self.show_pred_fun_info(query)
                     else:
                         scb_query = self.engine.convert_query(query)
                         scb_result = self.engine.process_query(scb_query)
