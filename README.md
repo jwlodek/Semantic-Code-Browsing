@@ -19,7 +19,7 @@ even these solutions will break down if the documentation surrounding the code i
 ### Usage
 
 To start, you will need a `C` or `Prolog` program, and you will need `Python 3`. Start the shell by giving the path to
-the program file as an argument:
+the program file as an argument to the `browse_code.py` script:
 
 ```
 PS E:\Stony Brook\09-Fall19\CSE 505\Semantic-Code-Browsing> py .\browse_code.py .\examples\larger_example.c
