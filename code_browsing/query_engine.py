@@ -246,6 +246,26 @@ class QueryShell:
         print(' > load program PATH.\n    Loads a new program with the specified path.')
         print(' > describe FUNCTION/ARITY\n    Prints all information about a function or predicate.\n')
 
+
+    def show_scb_help(self):
+        help = "\nThe format that queries entered into the query shell take is as follows:\n"
+        help = help + "* Each query begins with the find keyword.\n"
+        help = help + "* This is then followed by a search type, typically function or predicate with an optional arity marker.\n"
+        help = help + "* Then, optionally, assertions can be added by appending the where keyword followed by assertions of the following types.\n\nEach assertion starts with a keyword and colon, followed by certain search terms. Assertions can be glued together using or and and keywords.\n\n"
+        help = help + "\t1) inputs:INPUT_1_TYPE,INPUT_2_TYPE...\n"
+        help = help + "\t2) bodycontains:SEARCHTYPE (SEARCHTYPE: function, loop, conditional)\n"
+        help = help + "\t3) returns:RETURN_TYPE\n\n"
+        help = help + "* All queries end with a period.\n"
+
+        help = help + "Below are some examples of valid queries on an input program:\n\n"
+
+        help = help + "SCB Query > find function/2 where inputs:int,char* or returns:void.\n"
+        help = help + "SCB Query > find predicate.\n"
+        help = help + "SCB Query > find predicate where bodycontains:function and inputs:function/3,var.\n"
+        help = help + "SCB Query > find function where bodycontains:loop and returns:int*.\n"
+
+        print(help)
+
     def print_shell_info(self):
         print('TODO')
 
@@ -313,6 +333,8 @@ class QueryShell:
                         self.load_new_program(query.split(' ')[2][:-1])
                     elif query.startswith('describe'):
                         self.show_pred_fun_info(query)
+                    elif query == 'help scb.':
+                        self.show_scb_help()
                     else:
                         scb_query = self.engine.convert_query(query)
                         scb_result = self.engine.process_query(scb_query)
