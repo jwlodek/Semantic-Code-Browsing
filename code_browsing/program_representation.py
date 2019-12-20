@@ -63,9 +63,20 @@ class PythonProgramRepresentation:
     #TODO
     pass
 
-class CProgramRepresentation:
-    #TODO
-    pass
+class CProgramRepresentation(ProgramRepresentation):
+    def __init__(self):
+        super().__init__('C Representation', 'C Program represented as series of functions.')
+        self.c_functions = []
+        self.c_function_map = {}
+
+    def add_method(self, new_func):
+        self.c_functions.append(new_func)
+        self.c_function_map[new_func.name] = len(self.c_functions) - 1
+
+    def print_representation(self, fp=sys.stdout):
+        fp.write('{} w/ {} function\n{}\nFunctions:\n'.format(self.representation_name, len(self.c_functions), self.description))
+        for func in self.c_functions:
+            func.print_term(fp=fp)
 
 class Term:
 
@@ -74,6 +85,24 @@ class Term:
 
     def print_term(self, fp=sys.stdout):
         fp.write('Term name: {}\n'.format(self.name))
+
+
+class Loop(Term):
+    def __init__(self, name):
+        super().__init__(name)
+        self.contents = []
+
+    def print_term(self, fp=sys.stdout):
+        fp.write('Loop of type {}\n'.format(self.name))
+
+class Conditional(Term):
+    def __init__(self, name):
+        super().__init__(name)
+        self.contents = []
+
+    def print_term(self, fp=sys.stdout):
+        fp.write('Conditional of type {}\n'.format(self.name))
+
 
 
 class Operator(Term):
@@ -138,6 +167,52 @@ class PythonFunction(Function):
     def __init__(self, name, set_of_terms, return_set):
         super().__init__(name, set_of_terms)
         self.return_set = return_set
+
+
+class Method(Function):
+    def __init__(self, name, return_type, set_of_terms, body):
+        super().__init__(name, set_of_terms)
+        self.body = body
+        self.return_type = return_type
+
+    def get_variable_list_from_terms(self):
+        variable_list = super().get_variable_list_from_terms()
+        for term in self.body:
+            if isinstance(term, Variable):
+                variable_list.append(term)
+            else:
+                variable_list = variable_list + term.get_variable_list_from_terms()
+        return variable_list
+
+    def update_variable_expected_types(self):
+        variable_list = self.get_variable_list_from_terms()
+        for var in variable_list:
+            for v2 in variable_list:
+                if var.name == v2.name:
+                    if var.computed_type is None:
+                        var.computed_type = v2.computed_type
+                    elif v2.computed_type is None:
+                        v2.computed_type = var.computed_type
+                    elif var.computed_type == 'var' and v2.computed_type != 'var':
+                        var.computed_type = v2.computed_type
+                    elif v2.computed_type == 'var' and var.computed_type != 'var':
+                        v2.computed_type = var.computed_type
+                    elif var.computed_type != v2.computed_type:
+                        raise SCBErrors.SCBVariableMatchInvalidError
+
+
+
+    def print_term(self, fp=sys.stdout, verbosity='standard'):
+        if verbosity == 'low':
+            fp.write('Function Name: {} Function arity: {} Returns: {}\n'.format(self.name, self.arity, self.return_type))
+            return
+        fp.write('Function Name: {}\n'.format(self.name))
+        super().print_term()
+        if(len(self.body) > 0):
+            fp.write('Body of function:\n')
+            for term in self.body:
+                fp.write('- ')
+                term.print_term(fp=fp)
 
 
 class Predicate(Function):

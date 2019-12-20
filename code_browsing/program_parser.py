@@ -4,6 +4,18 @@ import sys
 import code_browsing.errors as SCBErrors
 import code_browsing.program_representation as PR
 
+
+def create_parser(program_path):
+    if os.path.isfile(program_path):
+        ext = program_path.split('.', -1)[-1]
+        if ext == 'pl' or ext == 'P':
+            return PrologProgramParser()
+        elif ext == 'c':
+            return CProgramParser()
+        elif ext == 'py':
+            return None
+    return PrologProgramParser()
+    
 class ProgramParser:
 
     def __init__(self, extension):
@@ -50,7 +62,7 @@ class PrologProgramParser(ProgramParser):
 
     def find_operands(self, symbol):
         operands = []
-        for operand in possible_operands:
+        for operand in self.possible_operands:
             if operand in symbol:
                 operands.append(operand)
         return operands
@@ -176,5 +188,96 @@ class PrologProgramParser(ProgramParser):
                 predicate = None
                 predicate_body = []
 
+
+class CProgramParser(ProgramParser):
+
+    def __init__(self):
+        super().__init__('.c')
+        self.program_representation = PR.CProgramRepresentation()
+        self.possible_operands = ['+', '-', '=']
+
+
+    def find_operands(self, symbol):
+        operands = []
+        for operand in self.possible_operands:
+            if operand in symbol:
+                operands.append(operand)
+        return operands
+
+
+    def convert_symbol_to_PR(self, symbol, is_method=False):
+        symbol_no_whitespace = symbol.strip()
+
+        if '(' in symbol_no_whitespace and ')' in symbol_no_whitespace and is_method:
+            var_list = symbol_no_whitespace.split('(')[1][:-1].split(',')
+            terms = []
+            for t in var_list:
+                var = t.strip().rsplit(' ', 1)
+                terms.append(PR.Variable(var[1], var[0]))
+            return PR.Method(symbol_no_whitespace.split('(', 1)[0].rsplit(' ', 1)[1], symbol_no_whitespace.split('(', 1)[0].rsplit(' ', 1)[0], terms, None)
+
+        elif symbol_no_whitespace.startswith('for'):
+            return PR.Loop('for')
+        elif symbol_no_whitespace.startswith('while'):
+            return PR.Loop('while')
+        elif symbol_no_whitespace.startswith('if'):
+            return PR.Conditional('if')
+        elif symbol_no_whitespace.startswith('else if'):
+            return PR.Conditional('else if')
+        elif symbol_no_whitespace.startswith('else'):
+            return PR.Conditional('else')
+
+
+    def parse_lines_into_representation(self, program_lines):
+        
+        reading_method = False
+        nested_depth = 0
+        nested_terms = []
+        method = None
+        method_body = []
+        for line in program_lines:
+            stripped = line.strip()
+
+            # Case of single line predicate with no body
+            if not reading_method and stripped.endswith('}') and '{' in line:
+                method = self.convert_symbol_to_PR(stripped.split('{')[0], is_method=True)
+
+            # Case of line with head + body
+            elif stripped.endswith('{') and not reading_method:
+                reading_method = True
+                method = self.convert_symbol_to_PR(stripped.split('{')[0], is_method=True)
+                    
+            elif reading_method:
+                temp = line.strip()
+                if temp.endswith('}'):
+                    if nested_depth > 1:
+                        nested_depth = nested_depth - 1
+                        nested_terms[nested_depth - 1].contents.append(nested_terms[nested_depth])
+                        del nested_terms[nested_depth]
+                    elif nested_depth == 1:
+                        nested_depth = nested_depth - 1
+                        method_body.append(nested_terms[nested_depth])
+                        del nested_terms[nested_depth]
+                    else:
+                        reading_method = False
+                    temp = temp[:-1]
+                elif temp.endswith(';'):
+                    temp = temp[:-1]
+                term = self.convert_symbol_to_PR(temp)
+                if term is not None:
+                
+                    if isinstance(term, PR.Loop) or isinstance(term, PR.Conditional):
+                        nested_terms.append(term)
+                        nested_depth = nested_depth + 1
+                    if nested_depth == 0:
+                        method_body.append(term)
+                    else:
+                        nested_terms[nested_depth - 1].contents.append(term)
                 
 
+            if not reading_method and method is not None:
+                method.body = method_body
+
+                self.program_representation.add_method(method)
+                method = None
+                method_body = []

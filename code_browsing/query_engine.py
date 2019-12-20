@@ -51,9 +51,8 @@ class QueryEngine:
         # Make conjunction/disjunction one character for simplicity
         assertion_list = []
         assertion_relationships = []
-        simplified_assertion_string = re.sub('and', 'A', assertion_str)
-        simplified_assertion_string = re.sub('or', 'O', simplified_assertion_string)
-        simplified_assertion_string = re.sub(' ', '', simplified_assertion_string)
+        simplified_assertion_string = re.sub(' and ', 'A', assertion_str)
+        simplified_assertion_string = re.sub(' or ', 'O', simplified_assertion_string)
 
         nested_assertion_counter = 0
         current_assertion = ''
@@ -102,9 +101,27 @@ class QueryEngine:
         elif isinstance(self.program_representation, PR.CProgramRepresentation):
             return self.process_c_query(scb_query)
 
+
     def process_c_query(self, scb_query):
-        #TODO
-        pass
+        true_matches = []
+        partial_matches = []
+        search_arity = -1
+        if scb_query.search_type.startswith('function'):
+            try:
+                search_arity = scb_query.search_type.split('/')[1]
+            except IndexError:
+                print('No arity specified of target function or predicate.')
+
+            for func in self.program_representation.c_functions:
+                if func.arity == int(search_arity) or search_arity == -1:
+                    assertion_results = []
+                    for assertion in scb_query.assertion_list:
+                        assertion_results.append(self.check_assertion(assertion, func))
+                    check = self.combine_results_with_relationships(assertion_results, scb_query.assertion_relationships)
+                    if check:
+                        true_matches.append(func)
+        return SCBQueryResult(scb_query.original_str, true_matches,partial_matches)
+
 
     def process_prolog_query(self, scb_query):
         true_matches = []
@@ -121,7 +138,6 @@ class QueryEngine:
                     assertion_results = []
                     for assertion in scb_query.assertion_list:
                         assertion_results.append(self.check_assertion(assertion, pred))
-                    print(assertion_results)
                     check = self.combine_results_with_relationships(assertion_results, scb_query.assertion_relationships)
                     if check:
                         true_matches.append(pred)
@@ -170,7 +186,10 @@ class QueryEngine:
         elif assertion.assertion_operator == 'bodycontains':
             pass
         elif assertion.assertion_operator == 'returns':
-            pass
+            if not isinstance(term, PR.Method):
+                assertion_result = False
+            elif term.return_type not in assertion.assertion_values:
+                assertion_result = False
         return assertion_result
 
 class QueryShell:
@@ -224,7 +243,7 @@ class QueryShell:
             print('ERROR - Path {} does not exist!'.format(path))
             exit()
         else:
-            parser = PARSER.PrologProgramParser()
+            parser = PARSER.create_parser(path)
             parser.parse_program(path)
             self.program_representation = parser.program_representation
             if not initial_load:
@@ -233,14 +252,24 @@ class QueryShell:
                 self.representation_language = 'Prolog'
             elif isinstance(self.program_representation, PR.PythonProgramRepresentation):
                 self.representation_language = 'Python'
+            elif isinstance(self.program_representation, PR.CProgramRepresentation):
+                self.representation_language = 'C'
 
 
     def show_pred_fun_info(self, query):
-        pred_name = query.split(' ')[1].split('/')[0]
-        pred_arity = int(query.split(' ')[1].split('/')[1][:-1])
+        pred_arity = -1
+        if '/' in query:
+            pred_name = query.split(' ')[1].split('/')[0]
+            pred_arity = int(query.split(' ')[1].split('/')[1][:-1])
+        else:
+            pred_name = query.split(' ')[1][:-1]
         counter = 0
-        for pred in self.program_representation.predicates:
-            if pred.name == pred_name and pred.arity == pred_arity:
+        if isinstance(self.program_representation, PR.PrologProgramRepresentation):
+            symbols = self.program_representation.predicates
+        elif isinstance(self.program_representation, PR.CProgramRepresentation):
+            symbols = self.program_representation.c_functions
+        for pred in symbols:
+            if pred.name == pred_name and (pred.arity == pred_arity or pred_arity == -1):
                 pred.print_term()
                 counter = counter + 1
         print('\n{} Matching result(s) found.'.format(counter))
