@@ -120,21 +120,21 @@ class QueryEngine:
                     check = self.combine_results_with_relationships(assertion_results, scb_query.assertion_relationships)
                     if check:
                         true_matches.append(func)
-        return SCBQueryResult(scb_query.original_str, true_matches,partial_matches)
+        return SCBQueryResult(scb_query.original_str, true_matches, partial_matches)
 
 
     def process_prolog_query(self, scb_query):
         true_matches = []
         partial_matches = []
+        search_arity = -1
         if scb_query.search_type.startswith('predicate'):
             try:
                 search_arity = scb_query.search_type.split('/')[1]
             except IndexError:
-                print('ERROR - Please specify arity of target function or predicate.')
-                return None
+                print('No arity specified of target function or predicate.')
 
             for pred in self.program_representation.predicates:
-                if pred.arity == int(search_arity):
+                if pred.arity == int(search_arity) or search_arity == -1:
                     assertion_results = []
                     for assertion in scb_query.assertion_list:
                         assertion_results.append(self.check_assertion(assertion, pred))
@@ -184,7 +184,21 @@ class QueryEngine:
                 elif isinstance(elem, PR.Variable) and not elem.computed_type == assertion.assertion_values[i]:
                     assertion_result = False
         elif assertion.assertion_operator == 'bodycontains':
-            pass
+            if not isinstance(term, PR.Predicate) and not isinstance(term, PR.Method) and not isinstance(term, PR.Function):
+                assertion_result = False
+            else:
+                assertion_result = False
+                for sub_term in term.body:
+                    for assertion_val in assertion.assertion_values:
+                        if assertion_val == 'function' and isinstance(sub_term, PR.Function):
+                            assertion_result = True
+                        elif assertion_val == 'loop' and isinstance(sub_term, PR.Loop):
+                            assertion_result = True
+                        elif assertion_val == 'conditional' and isinstance(sub_term, PR.Conditional):
+                            assertion = True
+                        elif isinstance(sub_term, PR.Function):
+                            if(self.check_assertion(assertion, sub_term)):
+                                assertion_result = True
         elif assertion.assertion_operator == 'returns':
             if not isinstance(term, PR.Method):
                 assertion_result = False
